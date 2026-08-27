@@ -1,0 +1,31 @@
+[package]
+name = "ttlock-py"
+description = "Python bindings for the sans-IO ttlock-core protocol engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Not a crates.io artifact: this crate exists only to build the `ttlock` wheel
+# for PyPI. Publishing a cdylib to crates.io would serve no one.
+publish = false
+
+[lib]
+name = "ttlock"
+crate-type = ["cdylib"]
+
+[dependencies]
+ttlock-core.workspace = true
+pyo3.workspace = true
+# Only for rendering a validated AES key back to canonical hex in
+# `normalize_aes_key`, which the Home Assistant config flow calls.
+hex.workspace = true
+
+# The workspace forbids unsafe code, but pyo3's #[pymodule]/#[pyclass] macros
+# expand to unsafe blocks in this crate. Keep the clippy gates but allow the
+# unsafe the bindings require; no hand-written unsafe lives in this crate.
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"

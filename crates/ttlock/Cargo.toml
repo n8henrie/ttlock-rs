@@ -1,0 +1,40 @@
+[package]
+name = "ttlock"
+description = "Command-line control for TTLock Bluetooth locks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
+
+[[bin]]
+name = "ttlock"
+path = "src/main.rs"
+
+[dependencies]
+ttlock-core.workspace = true
+btleplug.workspace = true
+clap.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+rumqttc.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+# `test-util` gives tests a pausable clock, so the deadline arithmetic in
+# `run_op` can be asserted exactly instead of raced against wall time.
+tokio = { workspace = true, features = ["test-util"] }

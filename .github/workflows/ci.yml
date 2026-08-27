@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Everything Nix-shaped: builds every package, and runs statix / deadnix /
+  # nixfmt via `nix flake check` so the same command works locally.
+  nix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - run: nix flake check --print-build-logs
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Versions agree
+        run: ./scripts/check-versions.sh
+      # Backstop for .gitignore: catches a credential pasted into source, or a
+      # secret-bearing file force-added past the ignore rules.
+      - name: No secrets committed
+        run: ./scripts/check-secrets.sh
+      - name: Format
+        run: nix develop --command cargo fmt --check
+      - name: Clippy
+        run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: nix develop --command cargo test --workspace --exclude ttlock-py
+      # Catches a missing `version` on a path dependency, a bad `readme`, or
+      # anything else crates.io would reject — at PR time, not at release time.
+      # Exercises exactly what the release workflow runs, including resolving
+      # `ttlock` against the unpublished `ttlock-core` in this tree, so a PR
+      # that bumps the version is still checked end to end.
+      - name: Packaging dry run
+        run: nix develop .#release --command cargo publish --dry-run --workspace
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Lint
+        run: |
+          nix develop --command ruff check custom_components crates/ttlock-py/tests
+          nix develop --command ruff format --check custom_components crates/ttlock-py/tests
+      # `nix flake check` runs this too, but repeating it here fails the Python
+      # job on a type error rather than the (slower) Nix one.
+      - name: Types
+        run: nix develop --command ty check --ignore unresolved-import custom_components/ttlock_ble
+      - name: Build bindings and test
+        run: |
+          nix develop --command bash -eux -c '
+            python -m venv /tmp/venv
+            . /tmp/venv/bin/activate
+            pip install --quiet maturin pytest pycryptodome
+            cd crates/ttlock-py
+            maturin develop
+            pytest tests -q
+          '

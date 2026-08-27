@@ -1,0 +1,10 @@
+[
+  {
+    "address": "AA:BB:CC:DD:EE:FF",
+    "private_data": {
+      "aes_key": "00112233445566778899aabbccddeeff",
+      "admin_ps": 12345678,
+      "unlock_key": 12345678
+    }
+  }
+]

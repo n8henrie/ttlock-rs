@@ -1,0 +1,55 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "TTLock BLE",
+        "description": "Select the lock to add.",
+        "data": {
+          "address": "Bluetooth device"
+        }
+      },
+      "credentials": {
+        "title": "TTLock credentials",
+        "description": "Enter the pairing credentials for {name}. These come from the paired lock's data (aes_key and unlock_key).",
+        "data": {
+          "aes_key": "AES key (32 hex characters)",
+          "unlock_key": "Unlock key"
+        }
+      },
+      "reconfigure": {
+        "title": "TTLock credentials",
+        "description": "Update the pairing credentials for {name}.",
+        "data": {
+          "aes_key": "AES key (32 hex characters)",
+          "unlock_key": "Unlock key"
+        }
+      }
+    },
+    "error": {
+      "invalid_aes_key": "The AES key must be exactly 32 hexadecimal characters (16 bytes).",
+      "invalid_unlock_key": "The unlock key must be a whole number between 1 and 4294967295. It is the `unlock_key` from the lock's data, not `admin_ps`."
+    },
+    "abort": {
+      "no_devices_found": "No unconfigured TTLock devices were found.",
+      "already_configured": "This lock is already configured.",
+      "reconfigure_successful": "Credentials updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "TTLock BLE options",
+        "description": "Tune how hard the integration tries to reach the lock. Raise these if commands fail on a weak signal or when a Bluetooth proxy runs out of connection slots.",
+        "data": {
+          "connect_attempts": "Connection attempts per command",
+          "command_timeout": "Response timeout (seconds)"
+        },
+        "data_description": {
+          "connect_attempts": "How many times to connect and run a command before giving up. Each retry waits longer than the last.",
+          "command_timeout": "How long to wait for each response from the lock before treating the attempt as failed."
+        }
+      }
+    }
+  }
+}

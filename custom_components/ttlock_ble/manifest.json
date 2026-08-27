@@ -1,0 +1,24 @@
+{
+  "domain": "ttlock_ble",
+  "name": "TTLock BLE",
+  "bluetooth": [
+    {
+      "manufacturer_id": 773,
+      "connectable": true
+    }
+  ],
+  "codeowners": [
+    "@n8henrie"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth_adapters"
+  ],
+  "documentation": "https://github.com/n8henrie/ttlock-rs",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "requirements": [
+    "ttlock==0.1.1"
+  ],
+  "version": "0.1.1"
+}

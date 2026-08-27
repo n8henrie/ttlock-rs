@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------
+# Secrets and personal data. Everything here can open a real door or identify a
+# real home, so the patterns are deliberately unanchored: a `lockData.json` in a
+# subdirectory is exactly as dangerous as one in the root, and `git add -A` does
+# not care which you meant.
+#
+# `scripts/check-secrets.sh` (run in CI) is the backstop if something slips
+# past these patterns.
+# ---------------------------------------------------------------------------
+
+# Real lock credentials (AES key, admin passcode, unlock key).
+# Copy sample-lockData.json to lockData.json and fill in your own.
+lockData.json
+lockdata.json
+*lockData*.json
+!sample-lockData.json
+
+# Sciener/TTLock app database — contains every paired lock's keys.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.db
+
+# Bluetooth packet captures: contain your lock's address and traffic.
+*.pklg
+*.pcap
+*.pcapng
+*.btsnoop
+
+# Reverse-engineering notes: contain real device addresses and captured frames.
+ttlock_conversation_report.md
+
+# Scratch space for diagnostics: capture logs, one-off scripts, decrypted
+# frames. Anchored to the root. Everything here names a real device — an
+# advertisement log is a list of your lock's MAC and everything it broadcasts —
+# and none of it belongs in history.
+/tmp/
+
+# Top-level shell scripts are personal scratch (editor wrappers, one-off
+# helpers) and are not part of the project. Anchored to the root, so scripts
+# that belong to the repo live in scripts/ and stay tracked.
+/*.sh
+
+# Top-level logs are capture scratch and name a real device — an advertisement
+# log is the lock's MAC repeated once per report. Anchored to the root for the
+# same reason as the line above; logs that belong to the project would live
+# under docs/ or tmp/.
+/*.log
+
+# ---------------------------------------------------------------------------
+# Build output and tooling
+# ---------------------------------------------------------------------------
+/target
+/result
+/result-*
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+
+.ruff_cache/
+.direnv/
+.DS_Store
+.env

@@ -1,0 +1,206 @@
+name: Release
+
+# Tag-driven: bump `[workspace.package] version`, then
+# `git tag v$VERSION && git push --tags`. The tag must match that version.
+#
+# Both registries use Trusted Publishing (OIDC), so there are no long-lived
+# tokens in this repository. Before the first release, configure:
+#   - crates.io -> Settings -> Trusted Publishing, for BOTH `ttlock-core` and
+#     `ttlock`, pointing at this repo and the `release.yml` workflow.
+#   - PyPI -> the `ttlock` project -> Publishing, adding this repo,
+#     `release.yml`, and the `pypi` environment below.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Tag matches the workspace version
+        run: |
+          workspace=$(sed -n '/^\[workspace\.package\]/,/^\[/p' Cargo.toml |
+            sed -n 's/^version = "\(.*\)"/\1/p' | head -1)
+          tag="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$tag" != "$workspace" ]]; then
+            echo "tag $GITHUB_REF_NAME does not match workspace version $workspace" >&2
+            exit 1
+          fi
+          ./scripts/check-versions.sh
+          ./scripts/check-secrets.sh
+      - run: nix develop --command cargo test --workspace --exclude ttlock-py
+
+  # All builds are native — building through Nix, cross-compiling would need
+  # emulation or a remote builder. `-latest` labels everywhere except
+  # aarch64-linux, which GitHub only offers as a version-pinned label. That
+  # target is worth the pin: it is the Raspberry Pi running Home Assistant.
+  # Pinned labels go stale, so if this job starts failing, bump the label.
+  #
+  # Not static musl: btleplug's Linux backend talks to BlueZ over D-Bus and
+  # links libdbus, which does not static-link cleanly, so the Linux artifacts
+  # are dynamically linked against the runner's glibc and need a host at least
+  # that new.
+  binaries:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build
+        run: nix build .#ttlock --print-build-logs
+
+      - name: Stage artifact
+        run: |
+          name="ttlock-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp result/bin/ttlock "dist/$name/"
+          cp README.md LICENSE "dist/$name/"
+          tar -czf "dist/$name.tar.gz" -C dist "$name"
+          ( cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256" )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+
+  # Same runner policy as `binaries`: `-latest` everywhere except aarch64-linux.
+  # That wheel is the one that really matters — a Raspberry Pi running Home
+  # Assistant — and without it `pip install ttlock` there falls back to the
+  # sdist and needs a full Rust toolchain. Building it on a native ARM runner
+  # beats cross-compiling: no cross toolchain to keep working.
+  wheels:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            args: --manylinux auto
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            args: --manylinux auto
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            args: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # abi3-py312, so one wheel per platform covers 3.12 and newer.
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          args: --release --out dist --manifest-path crates/ttlock-py/Cargo.toml ${{ matrix.args }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist --manifest-path crates/ttlock-py/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  github-release:
+    needs: [binaries, wheels, sdist]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "{binary-*,wheel-*,sdist}"
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256
+            dist/*.whl
+          generate_release_notes: true
+          draft: false
+
+  pypi:
+    needs: [wheels, sdist]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # Trusted Publishing: PyPI mints a short-lived token from this OIDC
+      # identity, so no API token is stored here.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "{wheel-*,sdist}"
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  crates-io:
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      # Trusted Publishing for crates.io: exchanges the OIDC identity for a
+      # short-lived token exported as CARGO_REGISTRY_TOKEN.
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        # One command for the whole workspace. Cargo works out that `ttlock`
+        # depends on `ttlock-core`, verifies BOTH before uploading EITHER (it
+        # unpacks the freshly packaged ttlock-core into a temporary registry so
+        # ttlock can build against the version being released), then uploads in
+        # dependency order and waits for propagation. ttlock-py is skipped via
+        # its `publish = false`.
+        #
+        # Verifying everything up front is the point: a manifest error in
+        # `ttlock` now fails before ttlock-core is uploaded, instead of burning
+        # the version number and forcing a bump.
+        #
+        # `.#release` rather than the default shell — see flake.nix for why the
+        # auditable-cargo wrapper breaks this.
+        run: nix develop .#release --command cargo publish --workspace

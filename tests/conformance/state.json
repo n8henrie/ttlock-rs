@@ -1,0 +1,190 @@
+{
+  "_comment": [
+    "Shared behaviour table for the lock state machine, driven from both sides:",
+    "crates/ttlock/tests/conformance.rs renders each expectation as the MQTT",
+    "daemon does, and crates/ttlock-py/tests/test_conformance.py renders it as",
+    "the Home Assistant entity does.",
+    "",
+    "The tracker itself is shared code, so what this really pins is the two",
+    "*rendering* layers - the only place the daemon and the component can still",
+    "disagree. Add a scenario here and whichever side has not wired it up fails.",
+    "",
+    "Events: advertisement (is_unlock/battery, both optional - an empty object",
+    "is an advertisement too short to carry either, which real locks do emit),",
+    "command_started,",
+    "command_acknowledged, command_failed, unavailable, elapsed (advance the",
+    "clock, then poll the offline timeout).",
+    "",
+    "Expectations: reported_state is what MQTT publishes; is_locked/is_locking/",
+    "is_unlocking are the Home Assistant entity properties."
+  ],
+  "offline_after_ms": 10000,
+  "scenarios": [
+    {
+      "name": "nothing heard yet",
+      "events": [],
+      "expect": {
+        "reported_state": null,
+        "available": false,
+        "battery": null,
+        "is_locked": null,
+        "is_locking": false,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "an advertisement is evidence of the bolt, battery and presence",
+      "events": [{ "advertisement": { "is_unlock": false, "battery": 87 } }],
+      "expect": {
+        "reported_state": "LOCKED",
+        "available": true,
+        "battery": 87,
+        "is_locked": true,
+        "is_locking": false,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "a command in flight reports progress, not a bolt position",
+      "events": [
+        { "advertisement": { "is_unlock": true } },
+        { "command_started": "lock" }
+      ],
+      "expect": {
+        "reported_state": "LOCKING",
+        "available": true,
+        "is_locked": false,
+        "is_locking": true,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "an acknowledgement is the only thing that commits the bolt",
+      "events": [
+        { "command_started": "lock" },
+        { "command_acknowledged": "lock" }
+      ],
+      "expect": {
+        "reported_state": "LOCKED",
+        "available": true,
+        "is_locked": true,
+        "is_locking": false,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "a failure leaves the outcome unknown rather than reverting",
+      "events": [
+        { "advertisement": { "is_unlock": true } },
+        { "command_started": "lock" },
+        { "command_failed": true }
+      ],
+      "expect": {
+        "reported_state": "LOCKING",
+        "available": true,
+        "is_locked": false,
+        "is_locking": true,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "the next advertisement settles a failed command",
+      "events": [
+        { "command_started": "lock" },
+        { "command_failed": true },
+        { "advertisement": { "is_unlock": false } }
+      ],
+      "expect": {
+        "reported_state": "LOCKED",
+        "available": true,
+        "is_locked": true,
+        "is_locking": false,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "an advertisement carrying no bolt position leaves a command pending",
+      "events": [
+        { "command_started": "unlock" },
+        { "advertisement": {} }
+      ],
+      "expect": {
+        "reported_state": "UNLOCKING",
+        "available": true,
+        "is_locked": null,
+        "is_locking": false,
+        "is_unlocking": true
+      }
+    },
+    {
+      "name": "going unavailable clears a pending command",
+      "events": [
+        { "advertisement": { "is_unlock": false } },
+        { "command_started": "unlock" },
+        { "unavailable": true }
+      ],
+      "expect": {
+        "reported_state": "LOCKED",
+        "available": false,
+        "is_locked": true,
+        "is_locking": false,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "silence past the timeout expires availability",
+      "events": [
+        { "advertisement": { "is_unlock": false, "battery": 55 } },
+        { "elapsed_ms": 11000 }
+      ],
+      "expect": {
+        "reported_state": "LOCKED",
+        "available": false,
+        "battery": 55,
+        "is_locked": true,
+        "is_locking": false,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "silence within the timeout does not",
+      "events": [
+        { "advertisement": { "is_unlock": false } },
+        { "elapsed_ms": 9000 }
+      ],
+      "expect": {
+        "reported_state": "LOCKED",
+        "available": true,
+        "is_locked": true,
+        "is_locking": false,
+        "is_unlocking": false
+      }
+    },
+    {
+      "name": "unlocking reports its own transitional state",
+      "events": [{ "command_started": "unlock" }],
+      "expect": {
+        "reported_state": "UNLOCKING",
+        "available": false,
+        "is_locked": null,
+        "is_locking": false,
+        "is_unlocking": true
+      }
+    },
+    {
+      "name": "an unlock acknowledgement retracts the bolt",
+      "events": [
+        { "advertisement": { "is_unlock": false } },
+        { "command_started": "unlock" },
+        { "command_acknowledged": "unlock" }
+      ],
+      "expect": {
+        "reported_state": "UNLOCKED",
+        "available": true,
+        "is_locked": false,
+        "is_locking": false,
+        "is_unlocking": false
+      }
+    }
+  ]
+}

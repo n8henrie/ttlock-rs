@@ -2,7 +2,7 @@
 #
 # Kept separate from flake.nix so non-flake users get the same derivations:
 #
-#   (import (fetchTarball "https://github.com/n8henrie/ttlock-rs/archive/main.tar.gz")
+#   (import (fetchTarball "https://github.com/n8henrie/ttlock-rs/archive/master.tar.gz")
 #     + "/packages.nix") { pkgs = import <nixpkgs> { }; }
 #
 # The version comes from the Cargo workspace so the CLI, the Python wheel and

@@ -10,7 +10,7 @@
 //! * **A record can disclose a keypad passcode.** [`LogRecord::passcode`]
 //!   decodes it, so a caller at least knows the field is there.
 //!
-//! [notes]: https://github.com/n8henrie/ttlock-rs/blob/main/docs/protocol-and-design.md
+//! [notes]: https://github.com/n8henrie/ttlock-rs/blob/master/docs/protocol-and-design.md
 
 use chrono::NaiveDate;
 use chrono::NaiveDateTime;

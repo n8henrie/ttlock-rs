@@ -14,7 +14,6 @@ import json
 import pathlib
 
 import pytest
-
 import ttlock
 
 FIXTURE_PATH = (

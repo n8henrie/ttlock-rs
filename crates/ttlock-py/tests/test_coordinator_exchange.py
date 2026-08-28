@@ -27,7 +27,6 @@ import types
 
 import pytest
 import ttlock
-
 from test_smoke import AES_KEY, _response_frame
 
 _REPO_ROOT = pathlib.Path(__file__).parents[3]
@@ -112,7 +111,9 @@ def _load_coordinator() -> types.ModuleType:
     sys.modules["custom_components.ttlock_ble"] = package
 
     name = "custom_components.ttlock_ble.coordinator"
-    spec = importlib.util.spec_from_file_location(name, _COMPONENT_DIR / "coordinator.py")
+    spec = importlib.util.spec_from_file_location(
+        name, _COMPONENT_DIR / "coordinator.py"
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
@@ -192,7 +193,9 @@ class FakeBleakClient:
     async def disconnect(self) -> None:
         self._notify = None
 
-    async def write_gatt_char(self, _char: str, data: bytes, response: bool = True) -> None:
+    async def write_gatt_char(
+        self, _char: str, data: bytes, response: bool = True
+    ) -> None:
         # Reassemble the chunks the coordinator writes, so a reply is emitted
         # once per *frame* rather than once per 20-byte GATT write.
         self._pending.push(bytes(data))

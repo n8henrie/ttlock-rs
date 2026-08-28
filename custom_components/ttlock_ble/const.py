@@ -14,6 +14,7 @@ deliberate.
 
 from __future__ import annotations
 
+from homeassistant.const import Platform
 from ttlock import (
     CRC_RETRIES,
     CRC_RETRY_DELAY,
@@ -24,8 +25,6 @@ from ttlock import (
     WRITE_CHUNK,
     WRITE_CHUNK_DELAY,
 )
-
-from homeassistant.const import Platform
 
 __all__ = [
     "CRC_RETRIES",

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Every static check, via the same script CI runs.
+set -Eeuo pipefail
+exec "$(dirname "$0")/../../scripts/lint.sh"

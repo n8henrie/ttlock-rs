@@ -6,7 +6,6 @@ from typing import Any
 
 import ttlock
 import voluptuous as vol
-
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,

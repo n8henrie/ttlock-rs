@@ -142,7 +142,9 @@ def test_library_raises_ttlock_error_for_bad_aes_keys(raw):
 
 
 def test_library_accepts_raw_bytes_as_well_as_hex():
-    assert ttlock.normalize_aes_key(bytes(range(16))) == "000102030405060708090a0b0c0d0e0f"
+    assert (
+        ttlock.normalize_aes_key(bytes(range(16))) == "000102030405060708090a0b0c0d0e0f"
+    )
 
 
 def test_zero_unlock_key_is_rejected_at_the_operation_too():

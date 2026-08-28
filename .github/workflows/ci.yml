@@ -14,8 +14,23 @@ permissions:
   contents: read
 
 jobs:
-  # Everything Nix-shaped: builds every package, and runs statix / deadnix /
-  # nixfmt via `nix flake check` so the same command works locally.
+  # Every static check, via the same script the pre-commit hook runs. Keeping
+  # CI and the hook on one script is deliberate: a hook that checks less than
+  # CI teaches you to distrust it, and one that checks more blocks commits CI
+  # would have accepted.
+  #
+  # The script re-enters the Nix dev shell itself, so the toolchain here is the
+  # one the flake pins rather than whatever the runner ships.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - run: ./scripts/lint.sh
+
+  # Everything Nix-shaped: builds every package and runs the NixOS VM test.
+  # Too slow to sit in front of a commit, which is why `scripts/lint.sh` leaves
+  # it alone.
   nix:
     strategy:
       fail-fast: false
@@ -32,16 +47,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@main
-      - name: Versions agree
-        run: ./scripts/check-versions.sh
-      # Backstop for .gitignore: catches a credential pasted into source, or a
-      # secret-bearing file force-added past the ignore rules.
-      - name: No secrets committed
-        run: ./scripts/check-secrets.sh
-      - name: Format
-        run: nix develop --command cargo fmt --check
-      - name: Clippy
-        run: nix develop --command cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         run: nix develop --command cargo test --workspace --exclude ttlock-py
       # Catches a missing `version` on a path dependency, a bad `readme`, or
@@ -49,6 +54,11 @@ jobs:
       # Exercises exactly what the release workflow runs, including resolving
       # `ttlock` against the unpublished `ttlock-core` in this tree, so a PR
       # that bumps the version is still checked end to end.
+      #
+      # No `--allow-dirty`: that flag disables the temporary registry cargo
+      # uses to let `ttlock` build against the `ttlock-core` being released,
+      # which makes the verification step fail against whatever version is
+      # already on crates.io.
       - name: Packaging dry run
         run: nix develop .#release --command cargo publish --dry-run --workspace
 
@@ -57,14 +67,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@main
-      - name: Lint
-        run: |
-          nix develop --command ruff check custom_components crates/ttlock-py/tests
-          nix develop --command ruff format --check custom_components crates/ttlock-py/tests
-      # `nix flake check` runs this too, but repeating it here fails the Python
-      # job on a type error rather than the (slower) Nix one.
-      - name: Types
-        run: nix develop --command ty check --ignore unresolved-import custom_components/ttlock_ble
+      # Linting and type checking happen in the `lint` job; this builds the
+      # extension module and runs the suite against it.
       - name: Build bindings and test
         run: |
           nix develop --command bash -eux -c '

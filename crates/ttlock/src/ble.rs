@@ -702,6 +702,10 @@ mod tests {
     }
 
     impl Link for ScriptedLink {
+        // The `Link` trait declares this `async`, so the impl must be too even
+        // though this double has nothing to await. `unknown_lints` because the
+        // lint arrived in Rust 1.98 and the pinned toolchain is older.
+        #[allow(unknown_lints, clippy::unused_async_trait_impl)]
         async fn write_frame(&mut self, frame: &[u8]) -> Result<()> {
             self.writes.push(frame.to_vec());
             Ok(())

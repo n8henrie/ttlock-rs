@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Runs everything in .githooks/pre-commit.d/ — see run-hooks.
+# To add another hook type, copy this file to e.g. `pre-push` and create
+# `pre-push.d/`; the dispatcher works out which directory from its own name.
+set -Eeuo pipefail
+exec "$(dirname "$0")/run-hooks" "$(basename "$0")" "$@"

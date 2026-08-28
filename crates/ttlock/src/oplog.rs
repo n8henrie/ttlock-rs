@@ -336,6 +336,10 @@ mod tests {
     }
 
     impl Link for LogLink {
+        // The `Link` trait declares this `async`, so the impl must be too even
+        // though this double has nothing to await. `unknown_lints` because the
+        // lint arrived in Rust 1.98 and the pinned toolchain is older.
+        #[allow(unknown_lints, clippy::unused_async_trait_impl)]
         async fn write_frame(&mut self, raw: &[u8]) -> Result<()> {
             let envelope = Envelope::parse(raw)?;
             let plain = aes_decrypt(&envelope.data, &test_key())?;
@@ -348,6 +352,10 @@ mod tests {
             Ok(())
         }
 
+        // The `Link` trait declares this `async`, so the impl must be too even
+        // though this double has nothing to await. `unknown_lints` because the
+        // lint arrived in Rust 1.98 and the pinned toolchain is older.
+        #[allow(unknown_lints, clippy::unused_async_trait_impl)]
         async fn next_frame(&mut self, _timeout: Duration) -> Result<Vec<u8>> {
             self.pending.take().ok_or(CliError::Timeout)
         }

@@ -20,6 +20,16 @@ report() {
   fail=1
 }
 
+# This scan asks "what would a commit expose", which only has an answer inside a
+# git checkout. Without one, every `git ls-files` below yields nothing and the
+# script cheerfully reports a clean scan of zero files — the worst possible
+# failure for a security backstop. Refuse instead.
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "check-secrets: not a git repository, so there are no tracked files to scan." >&2
+  echo "This scan reports what a commit would expose; run it inside a checkout." >&2
+  exit 1
+fi
+
 # Test vectors that are intentionally present. Anything credential-shaped that
 # is NOT one of these is reported.
 #

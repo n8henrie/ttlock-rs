@@ -167,6 +167,42 @@ Read it before changing anything protocol-level.
 
 Bug reports and patches are welcome.
 
+### Checks
+
+`scripts/lint.sh` runs every static check: `cargo fmt`, clippy at pedantic, `ruff check`, `ruff format`, `ty`, `statix`, `deadnix`, `nixfmt`, and the repository's own version and secret scans.
+CI runs exactly this script, so a green run locally means a green `lint` job.
+
+```bash
+./scripts/lint.sh          # report every failure, not just the first
+./scripts/lint.sh --fix    # apply what the formatters can fix, then check
+```
+
+It re-enters the Nix dev shell on its own if the tools are not already on `PATH`, so it works from a bare shell and always uses the toolchain the flake pins rather than whatever `cargo` happens to be installed.
+The root `pyproject.toml` configures both ruff and ty, so neither falls through to a config file in your home directory — without it, two people get different results from the same source tree.
+
+`nix flake check` is deliberately not part of it — that builds every package and runs the NixOS VM test, which is a CI job rather than something to wait for before a commit.
+
+### Git hooks
+
+Hooks live in `.githooks/`, so they are version controlled and shared rather than living in each person's `.git/hooks`.
+Enable them once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`.githooks/pre-commit` runs every executable in `.githooks/pre-commit.d/` in name order — currently just `10-lint`, which calls `scripts/lint.sh`.
+**To add another check, drop an executable file in that directory.**
+Every hook runs even if an earlier one fails, and the commit is blocked if any did, so one commit attempt shows the whole list.
+`chmod -x` disables a hook without deleting it.
+
+For a different hook type, copy `.githooks/pre-commit` to e.g. `.githooks/pre-push` and create `.githooks/pre-push.d/`; the dispatcher works out which directory to run from its own name.
+
+Two things to know about `core.hooksPath`: it needs git 2.9 or newer, and it replaces the hooks directory wholesale, so anything already in `.git/hooks` stops running until you move it into `.githooks/`.
+
+The hook checks the working tree rather than the staged content, so with a partially staged change it reports on files as they are on disk.
+Bypass it with `git commit --no-verify`.
+
 This project was built with heavy LLM assistance, and I am not going to pretend otherwise.
 That does not oblige me to review LLM output from anyone else: I may close LLM-generated issues and pull requests for no reason other than being LLM-generated, at my sole discretion.
 If you use a model, understand and vouch for what you are submitting.

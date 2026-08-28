@@ -29,7 +29,6 @@ from bleak_retry_connector import (
     BleakClientWithServiceCache,
     establish_connection,
 )
-
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import (
     BluetoothCallbackMatcher,

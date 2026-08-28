@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Generic git-hook dispatcher: runs every executable in `<hook-name>.d/`.
+#
+# Git allows exactly one file per hook, which makes "add another check" mean
+# "edit the existing hook and hope you do not break what was there". This runs
+# a directory instead, so adding a check is dropping in a file and removing one
+# is deleting it.
+#
+# Every hook in the directory runs even if an earlier one fails, and the commit
+# is blocked if any failed. Stopping at the first failure would hide the rest
+# and turn one bad commit into several rounds of fixing.
+#
+# Files are run in name order, hence the numeric prefixes. Anything
+# non-executable is skipped, so `chmod -x` disables a hook without deleting it,
+# as are editor leftovers and READMEs.
+set -Eeuo pipefail
+
+hook=${1:?usage: run-hooks <hook-name> [args...]}
+shift
+
+directory="$(cd "$(dirname "$0")" && pwd)/${hook}.d"
+[[ -d ${directory} ]] || exit 0
+
+failures=()
+ran=0
+
+for script in "${directory}"/*; do
+  [[ -f ${script} && -x ${script} ]] || continue
+  case ${script} in
+    *.md | *~ | *.bak | *.swp | *.sample) continue ;;
+  esac
+  ran=$((ran + 1))
+  name=$(basename "${script}")
+  printf '\n--- %s: %s ---\n' "${hook}" "${name}" >&2
+  if ! "${script}" "$@"; then
+    failures+=("${name}")
+  fi
+done
+
+[[ ${ran} -eq 0 ]] && exit 0
+
+if [[ ${#failures[@]} -gt 0 ]]; then
+  printf '\n%s blocked the commit; %d of %d check(s) failed:\n' \
+    "${hook}" "${#failures[@]}" "${ran}" >&2
+  for name in "${failures[@]}"; do
+    printf '  - %s\n' "${name}" >&2
+  done
+  printf '\nFix them, or bypass with: git commit --no-verify\n' >&2
+  exit 1
+fi
+exit 0

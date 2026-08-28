@@ -1,0 +1,31 @@
+# Python tool configuration for the whole repository.
+#
+# This file exists to make linting reproducible, not to declare a package —
+# there is deliberately no `[project]` or `[build-system]` table. The Python
+# distribution is built from `crates/ttlock-py`, which has its own pyproject.
+#
+# Why it has to exist at all: with no configuration anywhere in the tree, ruff
+# and ty walk up past the repository and land on a config file in the user's
+# home directory. Two people then get different results from the same source,
+# and CI agrees with neither. That was a real bug here, not a hypothetical.
+#
+# One file rather than `ruff.toml` plus `ty.toml` because both tools read this
+# one, and both walk *past* `crates/ttlock-py/pyproject.toml` — which declares
+# neither `[tool.ruff]` nor `[tool.ty]` — so this governs every Python file in
+# the repository rather than splitting the tree in two.
+
+[tool.ruff]
+# 3.12 is the floor everywhere else: `requires-python` in the bindings'
+# pyproject, the `abi3-py312` pyo3 feature, and Home Assistant's own minimum.
+target-version = "py312"
+# Ruff's default, written down rather than inherited, since the formatter and
+# the linter must agree and a surprise here reformats every file.
+line-length = 88
+
+[tool.ruff.lint]
+# Ruff's default rules — pycodestyle errors and pyflakes — plus import sorting,
+# which is not on by default.
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ty.environment]
+python-version = "3.12"

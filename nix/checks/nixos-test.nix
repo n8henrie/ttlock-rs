@@ -140,8 +140,23 @@ pkgs.testers.runNixOSTest {
         assert config["command_topic"] == f"{BASE}/set", config
         assert config["state_topic"] == f"{BASE}/state", config
         assert config["availability_topic"] == f"{BASE}/availability", config
-        # Evidence-based reporting: HA must never assume a command succeeded.
-        assert config["optimistic"] is False, config
+        # `optimistic` is deliberately true, and it is not a retreat from
+        # evidence-based reporting.
+        #
+        # It is the only lever the MQTT lock platform gives for `assumed_state`,
+        # and without it the dashboard card offers only the action that
+        # contradicts our reported state — so a lock opened by hand while we
+        # believe it locked cannot be locked again. Since this firmware cannot
+        # sense a manual unlock at all (section 7a of the design notes), the
+        # state topic is always "last known" rather than ground truth, and
+        # saying so is the honest setting.
+        #
+        # Setting it does not stop Home Assistant subscribing to `state_topic`;
+        # that subscription is unconditional. The invariant this test exists to
+        # protect — never publishing a bolt position or availability that was
+        # not observed — is enforced by the daemon and checked by the subtests
+        # below, not by this flag.
+        assert config["optimistic"] is True, config
         assert config["state_locking"] == "LOCKING", config
         assert config["state_unlocking"] == "UNLOCKING", config
 

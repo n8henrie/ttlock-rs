@@ -172,6 +172,11 @@ pub fn lock_discovery_payload(topics: &Topics, address: &str) -> Value {
         // LOCKING before it even begins connecting — and a failed command
         // settles back to LOCKING rather than a bolt position, so nothing
         // durable is claimed without evidence.
+        //
+        // `nix/checks/nixos-test.nix` asserts this value too. That check builds
+        // only on Linux, so `nix flake check` on a macOS machine skips it
+        // silently — the two assertions once disagreed for a while and only CI
+        // noticed. Change both together.
         "optimistic": true,
         "availability_topic": topics.availability(),
         "payload_available": PAYLOAD_AVAILABLE,

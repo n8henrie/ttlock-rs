@@ -702,9 +702,24 @@ mod tests {
     }
 
     impl Link for ScriptedLink {
-        // The `Link` trait declares this `async`, so the impl must be too even
-        // though this double has nothing to await. `unknown_lints` because the
-        // lint arrived in Rust 1.98 and the pinned toolchain is older.
+        // `clippy::unused_async_trait_impl` fires here on an `async` that is not
+        // optional: the `Link` trait declares these methods `async`, so an impl
+        // must match even when it has nothing to await.
+        //
+        // Clippy's suggested rewrite is to return `impl Future` and wrap the body
+        // in `std::future::ready`. That reads fine for a one-liner like this one,
+        // but not for the sibling double in `oplog.rs`, whose body uses `?` and
+        // would need an immediately-invoked closure to keep it — worse code, in
+        // test scaffolding, to satisfy a lint about test scaffolding. Both doubles
+        // therefore allow it and stay the same shape.
+        //
+        // `unknown_lints` is load-bearing rather than defensive: the lint is new
+        // in Rust 1.98, the flake currently pins 1.97, and 1.97 rejects the bare
+        // name outright with `error: unknown lint`. Both toolchains are clean with
+        // it. It can go once the pinned Rust reaches 1.98.
+        //
+        // AGENTS.md requires an `allow` to carry strong reasoning and explicit
+        // confirmation; this one was raised and approved rather than assumed.
         #[allow(unknown_lints, clippy::unused_async_trait_impl)]
         async fn write_frame(&mut self, frame: &[u8]) -> Result<()> {
             self.writes.push(frame.to_vec());

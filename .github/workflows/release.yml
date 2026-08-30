@@ -113,6 +113,7 @@ jobs:
       - uses: PyO3/maturin-action@v1
         with:
           command: build
+          manylinux: "2_28"
           target: ${{ matrix.target }}
           args: --release --out dist --manifest-path crates/ttlock-py/Cargo.toml ${{ matrix.args }}
       - uses: actions/upload-artifact@v4
@@ -129,6 +130,7 @@ jobs:
       - uses: PyO3/maturin-action@v1
         with:
           command: sdist
+          manylinux: "2_28"
           args: --out dist --manifest-path crates/ttlock-py/Cargo.toml
       - uses: actions/upload-artifact@v4
         with:

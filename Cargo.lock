@@ -1590,7 +1590,7 @@ dependencies = [
 
 [[package]]
 name = "ttlock"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "btleplug",
  "clap",
@@ -1610,7 +1610,7 @@ dependencies = [
 
 [[package]]
 name = "ttlock-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "aes",
  "base64",
@@ -1625,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "ttlock-py"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "hex",
  "pyo3",

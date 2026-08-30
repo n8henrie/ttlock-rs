@@ -9,7 +9,7 @@ resolver = "3"
 # Single source of truth for the version of every crate, the Python wheel (via
 # maturin's dynamic version) and the Home Assistant component. `cargo release`
 # or a manual bump here moves all of them together; CI asserts they agree.
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 authors = ["Nathan Henrie <nate@n8henrie.com>"]
@@ -23,7 +23,7 @@ categories = ["command-line-utilities", "hardware-support"]
 # dependency, and it is what makes a published `ttlock` resolve `ttlock-core`
 # from the registry. Cargo has no `version.workspace` for dependencies, so this
 # literal must be bumped alongside `workspace.package.version` — CI enforces it.
-ttlock-core = { path = "crates/ttlock-core", version = "0.1.1" }
+ttlock-core = { path = "crates/ttlock-core", version = "0.2.0" }
 aes = "0.9"
 base64 = "0.23"
 btleplug = "0.12"

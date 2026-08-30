@@ -3,7 +3,7 @@
 use aes::Aes128;
 use cbc::{Decryptor, Encryptor};
 use cipher::block_padding::Pkcs7;
-use cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
 
 use crate::credential::AesKey;
 use crate::error::{Result, TtlockError};
@@ -32,7 +32,7 @@ pub fn aes_encrypt(source: &[u8], key: &AesKey) -> Vec<u8> {
         return Vec::new();
     }
     let key = key.as_bytes().into();
-    Aes128CbcEnc::new(key, key).encrypt_padded_vec_mut::<Pkcs7>(source)
+    Aes128CbcEnc::new(key, key).encrypt_padded_vec::<Pkcs7>(source)
 }
 
 /// Decrypt `source`, which was encrypted as [`aes_encrypt`] describes.
@@ -46,7 +46,7 @@ pub fn aes_decrypt(source: &[u8], key: &AesKey) -> Result<Vec<u8>> {
     }
     let key_bytes = key.as_bytes().into();
     Aes128CbcDec::new(key_bytes, key_bytes)
-        .decrypt_padded_vec_mut::<Pkcs7>(source)
+        .decrypt_padded_vec::<Pkcs7>(source)
         .map_err(|_| TtlockError::AesDecrypt)
 }
 

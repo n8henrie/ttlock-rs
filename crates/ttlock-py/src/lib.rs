@@ -114,23 +114,23 @@ fn normalize_unlock_key(value: &Bound<'_, PyAny>) -> PyResult<u32> {
 }
 
 /// Build a `(label, value)` step tuple for Python.
-fn step_tuple(py: Python<'_>, label: &str, value: PyObject) -> PyResult<PyObject> {
+fn step_tuple(py: Python<'_>, label: &str, value: Py<PyAny>) -> PyResult<Py<PyAny>> {
     let label = label.into_pyobject(py)?.into_any().unbind();
     let tuple = PyTuple::new(py, [label, value])?;
     Ok(tuple.into_any().unbind())
 }
 
-fn write_step(py: Python<'_>, frame: &[u8]) -> PyResult<PyObject> {
+fn write_step(py: Python<'_>, frame: &[u8]) -> PyResult<Py<PyAny>> {
     let value = PyBytes::new(py, frame).into_any().unbind();
     step_tuple(py, "write", value)
 }
 
-fn done_step(py: Python<'_>, value: PyObject) -> PyResult<PyObject> {
+fn done_step(py: Python<'_>, value: Py<PyAny>) -> PyResult<Py<PyAny>> {
     step_tuple(py, "done", value)
 }
 
 /// `LockVersion` describes the protocol header used when framing commands.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct LockVersion {
     inner: CoreLockVersion,
@@ -287,7 +287,7 @@ impl FrameAssembler {
     }
 
     /// Return the next complete frame (CRLF stripped), or `None`.
-    fn next_frame(&mut self, py: Python<'_>) -> Option<PyObject> {
+    fn next_frame(&mut self, py: Python<'_>) -> Option<Py<PyAny>> {
         self.inner
             .next_frame()
             .map(|frame| PyBytes::new(py, &frame).into_any().unbind())
@@ -310,8 +310,8 @@ fn lock_state_str(state: LockState) -> String {
 fn step_to_py<T>(
     py: Python<'_>,
     step: Step<T>,
-    to_value: impl FnOnce(Python<'_>, T) -> PyObject,
-) -> PyResult<PyObject> {
+    to_value: impl FnOnce(Python<'_>, T) -> Py<PyAny>,
+) -> PyResult<Py<PyAny>> {
     match step {
         Step::Write(frame) => write_step(py, &frame),
         Step::Done(output) => done_step(py, to_value(py, output)),
@@ -319,12 +319,12 @@ fn step_to_py<T>(
 }
 
 /// Actuation operations report only success, so their `done` value is `None`.
-fn actuate_value(py: Python<'_>, (): ()) -> PyObject {
+fn actuate_value(py: Python<'_>, (): ()) -> Py<PyAny> {
     py.None()
 }
 
 /// Status reports the lock state as a string.
-fn status_value(py: Python<'_>, state: LockState) -> PyObject {
+fn status_value(py: Python<'_>, state: LockState) -> Py<PyAny> {
     PyString::new(py, &lock_state_str(state))
         .into_any()
         .unbind()
@@ -348,7 +348,7 @@ impl StatusOp {
     }
 
     /// Produce the first frame to write.
-    fn start(&mut self, py: Python<'_>) -> PyResult<PyObject> {
+    fn start(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         step_to_py(
             py,
             self.inner.start().map_err(|e| to_pyerr(&e))?,
@@ -357,7 +357,7 @@ impl StatusOp {
     }
 
     /// Feed one reassembled response frame (CRLF stripped).
-    fn handle_frame(&mut self, py: Python<'_>, frame: &[u8]) -> PyResult<PyObject> {
+    fn handle_frame(&mut self, py: Python<'_>, frame: &[u8]) -> PyResult<Py<PyAny>> {
         step_to_py(
             py,
             self.inner.handle_frame(frame).map_err(|e| to_pyerr(&e))?,
@@ -401,7 +401,7 @@ macro_rules! actuate_op {
             }
 
             /// Produce the first frame to write.
-            fn start(&mut self, py: Python<'_>) -> PyResult<PyObject> {
+            fn start(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
                 step_to_py(
                     py,
                     self.inner.start().map_err(|e| to_pyerr(&e))?,
@@ -410,7 +410,7 @@ macro_rules! actuate_op {
             }
 
             /// Feed one reassembled response frame (CRLF stripped).
-            fn handle_frame(&mut self, py: Python<'_>, frame: &[u8]) -> PyResult<PyObject> {
+            fn handle_frame(&mut self, py: Python<'_>, frame: &[u8]) -> PyResult<Py<PyAny>> {
                 step_to_py(
                     py,
                     self.inner.handle_frame(frame).map_err(|e| to_pyerr(&e))?,
@@ -451,7 +451,7 @@ pub struct LockTracker {
 }
 
 /// Render a `Changed` as the set of field names Python sees.
-fn changed_set(py: Python<'_>, changed: Changed) -> PyResult<PyObject> {
+fn changed_set(py: Python<'_>, changed: Changed) -> PyResult<Py<PyAny>> {
     let names = [
         ("state", changed.state),
         ("available", changed.available),
@@ -481,7 +481,7 @@ impl LockTracker {
         py: Python<'_>,
         now_ms: u64,
         advertisement: &Advertisement,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         changed_set(
             py,
             self.inner.on_advertisement(now_ms, &advertisement.inner),
@@ -489,7 +489,7 @@ impl LockTracker {
     }
 
     /// Record that a `"lock"` or `"unlock"` command has been sent.
-    fn on_command_started(&mut self, py: Python<'_>, action: &str) -> PyResult<PyObject> {
+    fn on_command_started(&mut self, py: Python<'_>, action: &str) -> PyResult<Py<PyAny>> {
         changed_set(py, self.inner.on_command_started(parse_actuation(action)?))
     }
 
@@ -499,7 +499,7 @@ impl LockTracker {
         py: Python<'_>,
         now_ms: u64,
         action: &str,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         changed_set(
             py,
             self.inner
@@ -509,7 +509,7 @@ impl LockTracker {
 
     /// Record that a command failed, leaving the outcome unknown. The reported
     /// state deliberately stays in progress rather than reverting.
-    fn on_command_failed(&mut self, py: Python<'_>) -> PyResult<PyObject> {
+    fn on_command_failed(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         changed_set(py, self.inner.on_command_failed())
     }
 
@@ -526,7 +526,7 @@ impl LockTracker {
         py: Python<'_>,
         now_ms: u64,
         offline_after_ms: u64,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         changed_set(
             py,
             self.inner
@@ -536,7 +536,7 @@ impl LockTracker {
 
     /// Record that the lock can no longer be heard, clearing any pending
     /// command.
-    fn on_unavailable(&mut self, py: Python<'_>) -> PyResult<PyObject> {
+    fn on_unavailable(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         changed_set(py, self.inner.on_unavailable())
     }
 

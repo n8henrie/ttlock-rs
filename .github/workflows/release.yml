@@ -11,7 +11,6 @@ name: Release
 #     `release.yml`, and the `pypi` environment below.
 on:
   push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -137,6 +136,7 @@ jobs:
           if-no-files-found: error
 
   github-release:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [binaries, wheels, sdist]
     runs-on: ubuntu-latest
     permissions:
@@ -157,8 +157,8 @@ jobs:
           draft: false
 
   pypi:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [wheels, sdist]
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -174,8 +174,8 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
 
   crates-io:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: verify
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: crates-io
     permissions:

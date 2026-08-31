@@ -146,6 +146,11 @@
           inputsFrom = [ ours.ttlock ];
           buildInputs = with pkgs; [
             bacon
+            # `readelf`, for scripts/audit-wheel.sh. Without it the ELF checks
+            # find nothing and the audit reports a clean wheel having inspected
+            # none of it; the script refuses to run rather than allow that, so
+            # this is what keeps it running at all.
+            binutils
             cargo
             clippy
             deadnix
@@ -157,6 +162,13 @@
             statix
             # Catches attribute typos on our own classes, which `ruff` cannot.
             ty
+            # `scripts/audit-wheel.sh` unpacks a wheel and reads its ELF.
+            unzip
+            # maturin's `--zig` links Linux wheels against an older glibc so the
+            # manylinux tag is honest. Unused on macOS, but harmless there and
+            # keeping one shell means the wheel scripts behave the same
+            # everywhere. See scripts/build-wheel.sh.
+            zig
             (python312.withPackages (ps: [
               ps.pycryptodome
               ps.pytest

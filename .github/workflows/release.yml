@@ -87,7 +87,21 @@ jobs:
   # Assistant — and without it `pip install ttlock` there falls back to the
   # sdist and needs a full Rust toolchain. Building it on a native ARM runner
   # beats cross-compiling: no cross toolchain to keep working.
-  wheels:
+  # Linux wheels are built through Nix rather than `PyO3/maturin-action`,
+  # which reaches for a manylinux Docker container. Everything else in this
+  # repository is pinned by the flake, and the container is a second, unpinned
+  # toolchain to keep in step.
+  #
+  # Asking maturin for `manylinux_2_28` on a modern runner is not enough on its
+  # own — the option labels and audits the wheel, it does not change how the
+  # extension is linked, so the build failed with `pthread_setspecific@GLIBC_2.34`
+  # and friends. Those come from ordinary Rust std, not from a C dependency, so
+  # no dependency pruning removes them. `--zig` links against an older glibc,
+  # which is the actual fix. See scripts/build-wheel.sh.
+  #
+  # Native per architecture: zig is here for the glibc version, not to emulate
+  # a different CPU.
+  wheels-linux:
     needs: verify
     strategy:
       fail-fast: false
@@ -97,10 +111,33 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            args: ""
     runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Build wheel
+        run: nix develop --command ./scripts/build-wheel.sh
+      # A second opinion on the artifact maturin just audited: no glibc symbol
+      # above the floor, no unexpected shared library, no libpython, and nothing
+      # pointing into /nix/store.
+      - name: Audit wheel
+        run: nix develop --command ./scripts/audit-wheel.sh dist/*.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  # macOS deliberately does NOT go through Nix. Building the extension in the
+  # Nix dev shell links it against `/nix/store/...-libiconv/lib/libiconv.2.dylib`
+  # by absolute path: it imports on the builder and nowhere else. manylinux is a
+  # Linux policy and there is no equivalent problem to solve here, so this stays
+  # on the ordinary native toolchain. `scripts/audit-wheel.sh` checks Mach-O
+  # objects for exactly that store-path linkage, so the mistake is caught rather
+  # than shipped if anyone moves this job.
+  wheels-macos:
+    needs: verify
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
@@ -110,12 +147,13 @@ jobs:
       - uses: PyO3/maturin-action@v1
         with:
           command: build
-          manylinux: "2_28"
-          target: ${{ matrix.target }}
-          args: --release --out dist --manifest-path crates/ttlock-py/Cargo.toml ${{ matrix.args }}
+          target: aarch64-apple-darwin
+          args: --release --out dist --manifest-path crates/ttlock-py/Cargo.toml
+      - name: Audit wheel
+        run: ./scripts/audit-wheel.sh dist/*.whl
       - uses: actions/upload-artifact@v4
         with:
-          name: wheel-${{ matrix.target }}
+          name: wheel-aarch64-apple-darwin
           path: dist/*.whl
           if-no-files-found: error
 
@@ -137,7 +175,7 @@ jobs:
 
   github-release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [binaries, wheels, sdist]
+    needs: [binaries, wheels-linux, wheels-macos, sdist]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -158,7 +196,7 @@ jobs:
 
   pypi:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [wheels, sdist]
+    needs: [wheels-linux, wheels-macos, sdist]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

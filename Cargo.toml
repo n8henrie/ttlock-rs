@@ -28,7 +28,12 @@ aes = "0.9"
 base64 = "0.23"
 btleplug = "0.12"
 cbc = { version = "0.2", features = ["alloc"] }
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# `now` rather than `clock`: the only use is `Utc::now()` in the
+# check-user-time payload. `clock` additionally enables `Local`, which
+# drags in `iana-time-zone` and, on macOS, `core-foundation-sys` — a
+# platform-integration dependency in what is otherwise a pure-Rust
+# protocol library, and one more thing to link into a portable wheel.
+chrono = { version = "0.4", default-features = false, features = ["now", "std"] }
 cipher = { version = "0.5", features = ["alloc"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 futures-util = "0.3"

@@ -182,6 +182,23 @@ The root `pyproject.toml` configures both ruff and ty, so neither falls through 
 
 `nix flake check` is deliberately not part of it — that builds every package and runs the NixOS VM test, which is a CI job rather than something to wait for before a commit.
 
+### Python wheels
+
+Linux wheels are built through Nix rather than a manylinux container:
+
+```bash
+nix develop --command ./scripts/build-wheel.sh    # writes dist/
+nix develop --command ./scripts/audit-wheel.sh dist/*.whl
+```
+
+The wheel must run on ordinary distributions, not just on the machine that built it, and asking maturin for `--compatibility manylinux_2_28` does not achieve that on its own — the option labels and audits the wheel, it cannot relink it.
+The offending symbols (`pthread_setspecific@GLIBC_2.34` and friends) come from ordinary Rust std, so no dependency pruning removes them.
+`--zig` links against an older glibc, which is the actual fix; Nix pins the versions of rust, maturin and zig, and `audit-wheel.sh` checks the resulting ELF rather than trusting the filename.
+
+Linux builds are native per architecture — zig is here for the glibc version, not to emulate a CPU.
+
+**The macOS wheel is deliberately not built under Nix.** Doing so links it against `/nix/store/…/libiconv.2.dylib` by absolute path, so it imports on the builder and nowhere else; `audit-wheel.sh` checks Mach-O objects for exactly that.
+
 ### Git hooks
 
 Hooks live in `.githooks/`, so they are version controlled and shared rather than living in each person's `.git/hooks`.

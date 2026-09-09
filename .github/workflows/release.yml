@@ -157,16 +157,21 @@ jobs:
           path: dist/*.whl
           if-no-files-found: error
 
+  # Through Nix like the Linux wheels. An sdist is a source tarball with no
+  # compiled artifact, so it has no platform and no ABI: the `manylinux` option
+  # this job used to pass was inert. maturin still has to resolve the workspace
+  # to vendor `Cargo.lock`, the root manifest and `ttlock-core` alongside the
+  # bindings, which is the part worth getting right.
   sdist:
     needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          manylinux: "2_28"
-          args: --out dist --manifest-path crates/ttlock-py/Cargo.toml
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Build sdist
+        run: |
+          nix develop --command maturin sdist \
+            --out dist --manifest-path crates/ttlock-py/Cargo.toml
       - uses: actions/upload-artifact@v4
         with:
           name: sdist

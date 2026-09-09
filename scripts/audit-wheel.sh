@@ -31,16 +31,25 @@ if [[ ${#wheels[@]} -eq 0 ]]; then
   exit 2
 fi
 
-# Without `readelf` every ELF check below quietly finds nothing and the audit
-# reports a clean wheel having inspected none of it — the same silent-pass
-# shape as a linter handed an empty file list. Refuse instead.
-for tool in unzip readelf; do
-  command -v "${tool}" >/dev/null 2>&1 || {
-    echo "audit-wheel: ${tool} is not on PATH." >&2
+# `unzip` is the only tool every wheel needs. The object inspectors are
+# platform-specific and are demanded per wheel below: a macOS runner has no
+# `readelf` and does not need one, and requiring it up front failed the darwin
+# job on a tool it was never going to use.
+command -v unzip >/dev/null 2>&1 || {
+  echo "audit-wheel: unzip is not on PATH." >&2
+  exit 1
+}
+
+# Missing inspector means every check below quietly finds nothing and the audit
+# reports a clean wheel having inspected none of it — the same silent-pass shape
+# as a linter handed an empty file list. Refuse rather than skip.
+require_tool() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "audit-wheel: $1 is not on PATH, and $2 need it." >&2
     echo "Without it this check would pass without checking anything." >&2
     exit 1
   }
-done
+}
 
 failures=0
 note() {
@@ -70,10 +79,7 @@ for wheel in "${wheels[@]}"; do
       # dev shell produces an extension linked against
       # `/nix/store/...-libiconv/lib/libiconv.2.dylib` by absolute path. It
       # imports fine on the machine that built it and fails everywhere else.
-      if ! command -v otool >/dev/null 2>&1; then
-        echo "  macOS wheel, but no otool here — cannot audit; skipping" >&2
-        continue
-      fi
+      require_tool otool "macOS wheels"
       unpacked="${workdir}/$(basename "${wheel}" .whl)"
       mkdir -p "${unpacked}"
       unzip -q -o "${wheel}" -d "${unpacked}"
@@ -95,7 +101,7 @@ for wheel in "${wheels[@]}"; do
       done
       continue
       ;;
-    *manylinux*) ;;
+    *manylinux*) require_tool readelf "manylinux wheels" ;;
     *)
       note "${name}: not a manylinux wheel"
       continue

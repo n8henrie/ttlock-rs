@@ -51,6 +51,19 @@ require_tool() {
   }
 }
 
+# macOS ships bash 3.2 — `mapfile`/`readarray` arrived in bash 4, and this
+# script has to run on a plain macOS runner where the whole point is that no
+# Nix is involved. Collect into an array the portable way instead.
+read_lines() {
+  # Usage: read_lines <array-name>  (input on stdin)
+  local __name=$1 __line
+  eval "${__name}=()"
+  while IFS= read -r __line; do
+    [[ -n ${__line} ]] || continue
+    eval "${__name}+=(\"\${__line}\")"
+  done
+}
+
 failures=0
 note() {
   echo "AUDIT: $1" >&2
@@ -83,7 +96,7 @@ for wheel in "${wheels[@]}"; do
       unpacked="${workdir}/$(basename "${wheel}" .whl)"
       mkdir -p "${unpacked}"
       unzip -q -o "${wheel}" -d "${unpacked}"
-      mapfile -t dylibs < <(find "${unpacked}" \( -name '*.so' -o -name '*.dylib' \) -type f)
+      read_lines dylibs < <(find "${unpacked}" \( -name '*.so' -o -name '*.dylib' \) -type f)
       if [[ ${#dylibs[@]} -eq 0 ]]; then
         note "${name}: contains no loadable object"
         continue
@@ -112,7 +125,7 @@ for wheel in "${wheels[@]}"; do
   mkdir -p "${unpacked}"
   unzip -q -o "${wheel}" -d "${unpacked}"
 
-  mapfile -t objects < <(find "${unpacked}" -name '*.so' -type f)
+  read_lines objects < <(find "${unpacked}" -name '*.so' -type f)
   if [[ ${#objects[@]} -eq 0 ]]; then
     note "${name}: contains no shared object"
     continue
@@ -124,7 +137,7 @@ for wheel in "${wheels[@]}"; do
 
     # 1. Versioned glibc symbols. `readelf -V` lists the versions the object
     #    *requires*, which is exactly the manylinux question.
-    mapfile -t too_new < <(
+    read_lines too_new < <(
       readelf -V "${object}" 2>/dev/null |
         grep -oE 'GLIBC_2\.[0-9]+' | sort -u |
         # `GLIBC_2.28` splits on "." into `GLIBC_2` and `28`, so the minor
